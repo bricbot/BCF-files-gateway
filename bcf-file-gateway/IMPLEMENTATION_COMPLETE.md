@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-在现有 BCF-linkly-file-gateway FastAPI 应用中完整集成了文件入库审批系统，复用端口 8790，新增 WebUI 路由前缀 `/app`。
+在现有 bcf-file-gateway FastAPI 应用中完整集成了文件入库审批系统，复用端口 8790，新增 WebUI 路由前缀 `/app`。
 
 ## 实现状态：✅ 全部完成
 
@@ -169,7 +169,7 @@
 ## 启动命令
 
 ```bash
-cd /Users/myertai/VibeBase/BCFfilesShare/BCF-linkly-file-gateway
+cd /Users/myertai/VibeBase/BCFfilesShare/bcf-file-gateway
 .venv/bin/python -m gateway.main http
 ```
 

@@ -85,7 +85,7 @@ def create_app(config: Config) -> FastAPI:
             _scheduler.shutdown(wait=False)
         logger.info("Background tasks stopped")
 
-    app = FastAPI(title="BCF-linkly-file-gateway", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title="bcf-file-gateway", docs_url=None, redoc_url=None, lifespan=lifespan)
     quota_db = QuotaDB(config.db_path, config.daily_limit)
 
     # ── 存储配置到 app.state 供路由使用 ──

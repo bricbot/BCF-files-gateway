@@ -16,7 +16,7 @@ from .security import (
     validate_path,
 )
 
-mcp = FastMCP("BCF-linkly-file-gateway")
+mcp = FastMCP("bcf-file-gateway")
 
 _config = load_config()
 _quota_db = QuotaDB(_config.db_path, _config.daily_limit)

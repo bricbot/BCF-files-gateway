@@ -48,7 +48,7 @@ def run_mcp() -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="BCF-linkly-file-gateway", description="知识库文件下载网关")
+    parser = argparse.ArgumentParser(prog="bcf-file-gateway", description="知识库文件下载网关")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("http", help="启动 HTTP 下载服务（FastAPI + uvicorn）")
     sub.add_parser("mcp", help="以 stdio 方式启动 MCP 服务")

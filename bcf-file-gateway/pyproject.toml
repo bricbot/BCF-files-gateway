@@ -1,5 +1,5 @@
 [project]
-name = "BCF-linkly-file-gateway"
+name = "bcf-file-gateway"
 version = "0.1.0"
 description = "局域网文件下载网关：白名单目录 + HMAC 签名限时链接 + 每用户每日创建额度"
 requires-python = ">=3.10"
@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.scripts]
-BCF-linkly-file-gateway = "gateway.main:main"
+bcf-file-gateway = "gateway.main:main"
 
 [build-system]
 requires = ["setuptools>=68"]

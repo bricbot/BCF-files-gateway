@@ -1,4 +1,4 @@
-# BCF-linkly-file-gateway — 知识库文件下载网关
+# bcf-file-gateway — 知识库文件下载网关
 
 配合 Linkly 知识库与 qwenpaw 智能体使用：智能体检索到某段文本后，若用户想下载出处原文件，智能体将原文件绝对路径连同用户 ID 传给本网关，网关生成一个**局域网内的限时下载链接**返回给用户。
 
@@ -13,7 +13,7 @@
 ## 目录结构
 
 ```
-BCF-linkly-file-gateway/
+bcf-file-gateway/
 ├── pyproject.toml        # 依赖声明（fastapi / uvicorn / mcp<2.0 / tomli-w）
 ├── config.toml           # 运行配置
 ├── gateway/
@@ -31,7 +31,7 @@ BCF-linkly-file-gateway/
 需要 Python ≥ 3.10（本机使用 Homebrew 的 Python 3.13）：
 
 ```bash
-cd BCF-linkly-file-gateway
+cd bcf-file-gateway
 /opt/homebrew/bin/python3.13 -m venv .venv
 ./.venv/bin/pip install -e .
 ```
@@ -55,7 +55,7 @@ cd BCF-linkly-file-gateway
 HTTP 下载服务（必须常驻，下载链接指向它）：
 
 ```bash
-cd BCF-linkly-file-gateway
+cd bcf-file-gateway
 ./.venv/bin/python -m gateway.main http
 # 后台运行：
 nohup ./.venv/bin/python -m gateway.main http > gateway-http.log 2>&1 &
@@ -80,10 +80,10 @@ http://<局域网IP>:8790/skill
 ```json
 {
   "mcpServers": {
-    "BCF-linkly-file-gateway": {
-      "command": "/Users/myertai/VibeBase/BCFfilesShare/BCF-linkly-file-gateway/.venv/bin/python",
+    "bcf-file-gateway": {
+      "command": "/Users/myertai/VibeBase/BCFfilesShare/bcf-file-gateway/.venv/bin/python",
       "args": ["-m", "gateway.main", "mcp"],
-      "cwd": "/Users/myertai/VibeBase/BCFfilesShare/BCF-linkly-file-gateway"
+      "cwd": "/Users/myertai/VibeBase/BCFfilesShare/bcf-file-gateway"
     }
   }
 }

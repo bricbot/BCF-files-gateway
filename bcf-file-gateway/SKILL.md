@@ -1,11 +1,11 @@
 ---
-name: BCF-linkly-file-gateway
-description: 指导智能体使用本机 BCF-linkly-file-gateway 知识库文件下载网关。当用户想下载知识库检索到的文本出处的原文件、需要生成文件下载链接、或提到 BCF-linkly-file-gateway、下载网关、下载链接额度时使用。维护 BCF-linkly-file-gateway 功能后必须同步更新本 skill。
+name: bcf-file-gateway
+description: 指导智能体使用本机 bcf-file-gateway 知识库文件下载网关。当用户想下载知识库检索到的文本出处的原文件、需要生成文件下载链接、或提到 bcf-file-gateway、下载网关、下载链接额度时使用。维护 bcf-file-gateway 功能后必须同步更新本 skill。
 ---
 
-# BCF-linkly-file-gateway 使用指南
+# bcf-file-gateway 使用指南
 
-本机运行的知识库文件下载网关，位于 `/Users/myertai/VibeBase/BCFfilesShare/BCF-linkly-file-gateway`。
+本机运行的知识库文件下载网关，位于 `/Users/myertai/VibeBase/BCFfilesShare/bcf-file-gateway`。
 典型场景：用户通过 qwenpaw 智能体在 Linkly 知识库中检索到一段文本，想下载该文本出处的原文件。
 
 ## 工作流（四步）
@@ -96,10 +96,10 @@ POST /api/link
 ## 运维速查
 
 ```bash
-cd /Users/myertai/VibeBase/BCFfilesShare/BCF-linkly-file-gateway
+cd /Users/myertai/VibeBase/BCFfilesShare/bcf-file-gateway
 curl -s http://127.0.0.1:8790/health          # 健康检查
 pkill -f "gateway.main http"                   # 停止
-nohup ./.venv/bin/python -m gateway.main http > /tmp/BCF-linkly-file-gateway-http.log 2>&1 &  # 启动
+nohup ./.venv/bin/python -m gateway.main http > /tmp/bcf-file-gateway-http.log 2>&1 &  # 启动
 ```
 
 - 服务启动时会在终端输出 skill 的 HTTP 访问地址（http://<局域网IP>:8790/skill），智能体可直接访问该 URL 下载本文件
@@ -109,4 +109,4 @@ nohup ./.venv/bin/python -m gateway.main http > /tmp/BCF-linkly-file-gateway-htt
 
 ## 维护约定
 
-每次修改 BCF-linkly-file-gateway 的功能、接口参数、白名单、端口或错误语义后，必须同步更新本 skill 对应章节，保持与实际行为一致。
+每次修改 bcf-file-gateway 的功能、接口参数、白名单、端口或错误语义后，必须同步更新本 skill 对应章节，保持与实际行为一致。
