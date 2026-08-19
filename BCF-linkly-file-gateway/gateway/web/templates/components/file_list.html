@@ -1,0 +1,30 @@
+<!-- 待审批文件列表 HTMX 片段 -->
+<table>
+    <thead>
+        <tr><th></th><th>文件名</th><th>路径</th><th>大小</th><th>修改时间</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+        {% for f in files %}
+        <tr>
+            <td><input type="checkbox" value="{{ f.id }}" class="file-checkbox"></td>
+            <td>{{ f.file_name }}</td>
+            <td><small>{{ f.file_path }}</small></td>
+            <td>{{ f.file_size | filesize }}</td>
+            <td>{{ f.file_mtime | datetime }}</td>
+            <td>
+                <form method="POST" action="/app/task/{{ task_id }}/approve" style="display: inline;">
+                    <input type="hidden" name="file_ids" value="{{ f.id }}">
+                    <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">批准</button>
+                </form>
+                <form method="POST" action="/app/task/{{ task_id }}/reject" style="display: inline;">
+                    <input type="hidden" name="file_ids" value="{{ f.id }}">
+                    <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; color: var(--pico-del-color);">拒绝</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        {% if not files %}
+        <tr><td colspan="6" style="text-align: center;">暂无待审批文件</td></tr>
+        {% endif %}
+    </tbody>
+</table>

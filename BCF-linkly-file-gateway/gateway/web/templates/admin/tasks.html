@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}任务管理{% endblock %}
+{% block content %}
+<div x-data="{ showForm: false }">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>审批任务管理</h2>
+        <button @click="showForm = !showForm" class="outline">+ 新建任务</button>
+    </div>
+
+    <article x-show="showForm" x-cloak>
+        <h4>新建审批任务</h4>
+        <form method="POST" action="/app/admin/tasks/save">
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <label>任务名称
+                    <input type="text" name="name" required>
+                </label>
+                <label>任务类型
+                    <select name="task_type" x-model="taskType">
+                        <option value="permanent">常驻任务</option>
+                        <option value="onetime">一次性任务</option>
+                    </select>
+                </label>
+                <label>来源目录
+                    <select name="source_mount_id" required>
+                        <option value="">-- 选择来源挂载点 --</option>
+                        {% for m in source_mounts %}
+                        <option value="{{ m.id }}">{{ m.name }} ({{ m.remote_path }})</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>入库目录
+                    <select name="target_mount_id" required>
+                        <option value="">-- 选择入库挂载点 --</option>
+                        {% for m in target_mounts %}
+                        <option value="{{ m.id }}">{{ m.name }} ({{ m.remote_path }})</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            <label>任务描述
+                <textarea name="description" rows="2"></textarea>
+            </label>
+            <div x-show="taskType === 'onetime'">
+                <label>结束时间
+                    <input type="datetime-local" name="end_time">
+                </label>
+            </div>
+            <label>审批人（可多选）
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    {% for u in reviewers %}
+                    <label style="display: flex; align-items: center; gap: 0.3rem;">
+                        <input type="checkbox" name="assignee_ids" value="{{ u.id }}">
+                        {{ u.nickname or u.username }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </label>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit">创建任务</button>
+                <button type="button" class="outline secondary" @click="showForm = false">取消</button>
+            </div>
+        </form>
+    </article>
+
+    <table>
+        <thead>
+            <tr>
+                <th>任务名称</th>
+                <th>类型</th>
+                <th>来源目录</th>
+                <th>入库目录</th>
+                <th>审批人</th>
+                <th>文件统计</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tasks %}
+            <tr>
+                <td><a href="/app/task/{{ t.id }}">{{ t.name }}</a></td>
+                <td>
+                    {% if t.task_type == 'permanent' %}
+                    <span style="background: var(--pico-primary); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">常驻</span>
+                    {% else %}
+                    <span style="background: var(--pico-contrast); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">一次性</span>
+                    {% endif %}
+                </td>
+                <td>{{ t.source_name }}</td>
+                <td>{{ t.target_name }}</td>
+                <td>{{ t.assignees | map(attribute='nickname') | join(', ') }}</td>
+                <td>
+                    待审: {{ t.file_counts.get('pending', 0) }} /
+                    已批: {{ t.file_counts.get('approved', 0) }} /
+                    已拒: {{ t.file_counts.get('rejected', 0) }}
+                </td>
+                <td>
+                    {% if t.is_active %}
+                    <span style="color: var(--pico-ins-color);">活跃</span>
+                    {% else %}
+                    <span style="color: var(--pico-del-color);">停用</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/app/task/{{ t.id }}" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">详情</a>
+                    <form method="POST" action="/app/admin/tasks/scan" style="display: inline;">
+                        <input type="hidden" name="task_id" value="{{ t.id }}">
+                        <button type="submit" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">扫描</button>
+                    </form>
+                    <form method="POST" action="/app/admin/tasks/delete" style="display: inline;"
+                          onsubmit="return confirm('确定删除此任务？');">
+                        <input type="hidden" name="task_id" value="{{ t.id }}">
+                        <button type="submit" class="outline" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; color: var(--pico-del-color);">删除</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not tasks %}
+            <tr><td colspan="8" style="text-align: center;">暂无任务</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}文件入库审批{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+    {% if user %}
+    <nav class="container-fluid" style="background: var(--pico-primary-background); color: white; padding: 0.8rem 2rem;">
+        <ul>
+            <li><strong style="font-size: 1.2rem;">文件入库审批系统</strong></li>
+        </ul>
+        <ul>
+            <li><a href="/app/dashboard" style="color: white;">仪表盘</a></li>
+            <li><a href="/app/tasks" style="color: white;">我的任务</a></li>
+            <li><a href="/app/transfers" style="color: white;">传输状态</a></li>
+            {% if user.role == 'admin' %}
+            <li><a href="/app/admin/mounts" style="color: white;">挂载点</a></li>
+            <li><a href="/app/admin/tasks" style="color: white;">任务管理</a></li>
+            <li><a href="/app/admin/users" style="color: white;">用户管理</a></li>
+            <li><a href="/app/admin/config" style="color: white;">系统配置</a></li>
+            {% endif %}
+        </ul>
+        <ul>
+            <li><a href="/app/profile" style="color: white;">{{ user.nickname or user.username }}</a></li>
+            <li><a href="/app/logout" style="color: white;">退出</a></li>
+        </ul>
+    </nav>
+    {% endif %}
+
+    <main class="container" style="padding: 2rem;">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

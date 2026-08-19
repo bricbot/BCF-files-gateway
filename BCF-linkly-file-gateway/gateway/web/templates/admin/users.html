@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}用户管理{% endblock %}
+{% block content %}
+<div x-data="{ showForm: false }">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>用户管理</h2>
+        <button @click="showForm = !showForm" class="outline">+ 新建用户</button>
+    </div>
+
+    <article x-show="showForm" x-cloak>
+        <h4>新建审批员</h4>
+        <form method="POST" action="/app/admin/users/save">
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <label>用户名
+                    <input type="text" name="username" required minlength="3">
+                </label>
+                <label>昵称
+                    <input type="text" name="nickname">
+                </label>
+                <label>密码
+                    <input type="password" name="password" required minlength="8">
+                </label>
+                <label>角色
+                    <select name="role">
+                        <option value="reviewer">审批员</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </label>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit">创建</button>
+                <button type="button" class="outline secondary" @click="showForm = false">取消</button>
+            </div>
+        </form>
+    </article>
+
+    <table>
+        <thead>
+            <tr><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.username }}</td>
+                <td>{{ u.nickname or '-' }}</td>
+                <td>
+                    {% if u.role == 'admin' %}
+                    <span style="background: var(--pico-primary); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">管理员</span>
+                    {% else %}
+                    <span style="background: var(--pico-contrast); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">审批员</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_active %}
+                    <span style="color: var(--pico-ins-color);">启用</span>
+                    {% else %}
+                    <span style="color: var(--pico-del-color);">禁用</span>
+                    {% endif %}
+                </td>
+                <td>{{ u.created_at | datetime }}</td>
+                <td>
+                    <button class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;"
+                            onclick="document.getElementById('reset-pwd-{{ u.id }}').showModal()">重置密码</button>
+                    <dialog id="reset-pwd-{{ u.id }}">
+                        <article>
+                            <h4>重置密码 - {{ u.username }}</h4>
+                            <form method="POST" action="/app/admin/users/reset-password">
+                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                <label>新密码
+                                    <input type="password" name="new_password" required minlength="8">
+                                </label>
+                                <div style="display: flex; gap: 1rem;">
+                                    <button type="submit">确认重置</button>
+                                    <button type="button" class="outline secondary"
+                                            onclick="document.getElementById('reset-pwd-{{ u.id }}').close()">取消</button>
+                                </div>
+                            </form>
+                        </article>
+                    </dialog>
+                    {% if u.id != user.id %}
+                    <form method="POST" action="/app/admin/users/delete" style="display: inline;"
+                          onsubmit="return confirm('确定删除用户 {{ u.username }}？');">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <button type="submit" class="outline" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; color: var(--pico-del-color);">删除</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

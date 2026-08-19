@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}我的审批任务{% endblock %}
+{% block content %}
+<h2>我的审批任务</h2>
+
+{% if not tasks %}
+<article>
+    <p style="text-align: center; color: var(--pico-muted-color);">暂无分配给你的审批任务</p>
+</article>
+{% else %}
+
+{% for t in tasks %}
+<article style="margin-bottom: 1rem;">
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h4 style="margin: 0;">
+                <a href="/app/task/{{ t.id }}">{{ t.name }}</a>
+                {% if t.task_type == 'permanent' %}
+                <span style="background: var(--pico-primary); color: white; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">常驻</span>
+                {% else %}
+                <span style="background: var(--pico-contrast); color: white; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">一次性</span>
+                {% if t.end_time %}
+                <small style="margin-left: 0.5rem;">截止: {{ t.end_time | datetime }}</small>
+                {% endif %}
+                {% endif %}
+            </h4>
+            {% if t.description %}<small>{{ t.description }}</small>{% endif %}
+        </div>
+        <a href="/app/task/{{ t.id }}" role="button" class="outline" style="padding: 0.3rem 0.8rem;">进入审批</a>
+    </header>
+    <div style="display: flex; gap: 2rem; margin-top: 0.5rem; font-size: 0.9rem;">
+        <span>来源: <strong>{{ t.source_name }}</strong></span>
+        <span>入库: <strong>{{ t.target_name }}</strong></span>
+        <span>待审批: <strong style="color: var(--pico-primary);">{{ t.file_counts.get('pending', 0) }}</strong></span>
+        <span>已批准: <strong style="color: var(--pico-ins-color);">{{ t.file_counts.get('approved', 0) }}</strong></span>
+        <span>已拒绝: <strong style="color: var(--pico-del-color);">{{ t.file_counts.get('rejected', 0) }}</strong></span>
+    </div>
+</article>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

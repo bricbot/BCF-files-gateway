@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}个人中心{% endblock %}
+{% block content %}
+<h2>个人中心</h2>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr;">
+    <article>
+        <h4>修改昵称</h4>
+        <form method="POST" action="/app/profile/nickname">
+            <label>当前昵称
+                <input type="text" name="nickname" value="{{ user.nickname or '' }}">
+            </label>
+            {% if msg %}<p style="color: var(--pico-ins-color);">{{ msg }}</p>{% endif %}
+            <button type="submit">保存</button>
+        </form>
+    </article>
+
+    <article>
+        <h4>修改密码</h4>
+        <form method="POST" action="/app/profile/password">
+            <label>旧密码
+                <input type="password" name="old_password" required>
+            </label>
+            <label>新密码
+                <input type="password" name="new_password" required minlength="8">
+            </label>
+            <label>确认新密码
+                <input type="password" name="confirm_password" required>
+            </label>
+            {% if pwd_error %}<p style="color: var(--pico-del-color);">{{ pwd_error }}</p>{% endif %}
+            {% if pwd_msg %}<p style="color: var(--pico-ins-color);">{{ pwd_msg }}</p>{% endif %}
+            <button type="submit">修改密码</button>
+        </form>
+    </article>
+</div>
+
+<h3>我的操作日志</h3>
+<table>
+    <thead>
+        <tr><th>时间</th><th>操作</th><th>资源</th><th>详情</th></tr>
+    </thead>
+    <tbody>
+        {% for log in my_logs %}
+        <tr>
+            <td>{{ log.created_at | datetime }}</td>
+            <td>{{ log.action }}</td>
+            <td>{{ log.resource_type }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}</td>
+            <td>{{ (log.detail or '') | truncate(100) }}</td>
+        </tr>
+        {% endfor %}
+        {% if not my_logs %}
+        <tr><td colspan="4" style="text-align: center;">暂无日志</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}登录 - 文件入库审批{% endblock %}
+{% block content %}
+<div style="max-width: 400px; margin: 4rem auto;">
+    <article>
+        <h3>文件入库审批系统</h3>
+
+        {% if not has_admin %}
+        <div style="background: #fff3cd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+            <strong>首次部署</strong>：系统尚未创建管理员账户，请先创建管理员。
+        </div>
+        <button onclick="document.getElementById('register-form').style.display='block'; this.style.display='none';"
+                style="width: 100%; margin-bottom: 1rem;">
+            创建管理员账户
+        </button>
+        {% endif %}
+
+        <!-- 登录表单 -->
+        <form id="login-form" method="POST" action="/app/login">
+            <label>用户名
+                <input type="text" name="username" required autofocus>
+            </label>
+            <label>密码
+                <input type="password" name="password" required>
+            </label>
+            {% if error %}
+            <p style="color: var(--pico-del-color);">{{ error }}</p>
+            {% endif %}
+            <button type="submit">登录</button>
+        </form>
+
+        <!-- 注册表单（仅无管理员时显示） -->
+        {% if not has_admin %}
+        <form id="register-form" method="POST" action="/app/register" style="display: none;">
+            <h4>创建管理员账户</h4>
+            <label>用户名
+                <input type="text" name="username" required minlength="3">
+            </label>
+            <label>昵称
+                <input type="text" name="nickname">
+            </label>
+            <label>密码
+                <input type="password" name="password" required minlength="8">
+            </label>
+            <label>确认密码
+                <input type="password" name="confirm_password" required>
+            </label>
+            {% if reg_error %}
+            <p style="color: var(--pico-del-color);">{{ reg_error }}</p>
+            {% endif %}
+            <button type="submit">创建管理员</button>
+        </form>
+        {% endif %}
+    </article>
+</div>
+{% endblock %}

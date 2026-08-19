@@ -1,0 +1,32 @@
+[project]
+name = "BCF-linkly-file-gateway"
+version = "0.1.0"
+description = "局域网文件下载网关：白名单目录 + HMAC 签名限时链接 + 每用户每日创建额度"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "mcp>=1.2.0,<2.0",
+    "tomli-w>=1.0",
+    "tomli>=2.0; python_version < '3.11'",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
+    "bcrypt>=4.1",
+    "aiofiles>=23.0",
+    "smbprotocol>=1.13",
+    "webdavclient3>=3.14",
+    "paramiko>=3.4",
+    "apscheduler>=3.10",
+    "cryptography>=42.0",
+]
+
+[project.scripts]
+BCF-linkly-file-gateway = "gateway.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["gateway*"]

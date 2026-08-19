@@ -1,0 +1,42 @@
+{# 复核入库文件列表片段 - 被 task_detail.html include #}
+{% if reviewing_files %}
+<article style="border-left: 4px solid #ffc107; background: #fff8e1;">
+    <h4 style="color: #f57c00;">复核入库文件 ({{ reviewing_files | length }})</h4>
+    <table>
+        <thead>
+            <tr><th>文件名</th><th>路径</th><th>大小</th><th>标记人</th><th>标记时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for f in reviewing_files %}
+            <tr style="background: #fff8e1;">
+                <td>{{ f.file_name }}</td>
+                <td><small>{{ f.file_path }}</small></td>
+                <td>{{ f.file_size | filesize }}</td>
+                <td>{{ f.marked_by_name }}</td>
+                <td>{{ f.marked_at | datetime }}</td>
+                <td>
+                    <button class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;"
+                            @click="showWithdraw = true">撤回复核</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</article>
+
+<!-- 撤回复核对话框 -->
+<dialog x-show="showWithdraw" x-cloak>
+    <article>
+        <h4>撤回复核</h4>
+        <form method="POST" action="/app/task/{{ task.id }}/withdraw">
+            <label>撤回理由（必填）
+                <textarea name="reason" rows="3" required x-model="withdrawReason"></textarea>
+            </label>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit">确认撤回</button>
+                <button type="button" class="outline secondary" @click="showWithdraw = false">取消</button>
+            </div>
+        </form>
+    </article>
+</dialog>
+{% endif %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}传输状态{% endblock %}
+{% block content %}
+<h2>文件传输状态</h2>
+
+<div x-data="{ filter: 'all' }">
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <button :class="filter === 'all' ? '' : 'outline'" @click="filter = 'all'">全部</button>
+        <button :class="filter === 'pending' ? '' : 'outline'" @click="filter = 'pending'">等待中</button>
+        <button :class="filter === 'processing' ? '' : 'outline'" @click="filter = 'processing'">传输中</button>
+        <button :class="filter === 'completed' ? '' : 'outline'" @click="filter = 'completed'">已完成</button>
+        <button :class="filter === 'failed' ? '' : 'outline'" @click="filter = 'failed'">失败</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>文件名</th><th>任务</th><th>操作</th><th>状态</th><th>进度</th><th>时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for q in queue_items %}
+            <tr x-show="filter === 'all' || filter === '{{ q.status }}'">
+                <td>{{ q.file_name }}</td>
+                <td>{{ q.task_name }}</td>
+                <td>
+                    {% if q.action == 'accept' %}
+                    <span style="color: var(--pico-ins-color);">批准入库</span>
+                    {% elif q.action == 'reject' %}
+                    <span style="color: var(--pico-del-color);">拒绝入库</span>
+                    {% elif q.action == 'review' %}
+                    <span style="color: #f57c00;">复核入库</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if q.status == 'pending' %}
+                    <span style="color: var(--pico-primary);">等待中</span>
+                    {% elif q.status == 'processing' %}
+                    <span style="color: var(--pico-ins-color);">传输中</span>
+                    {% elif q.status == 'completed' %}
+                    <span style="color: var(--pico-ins-color);">已完成</span>
+                    {% elif q.status == 'failed' %}
+                    <span style="color: var(--pico-del-color);">失败</span>
+                    {% elif q.status == 'paused' %}
+                    <span style="color: var(--pico-contrast);">已暂停</span>
+                    {% elif q.status == 'cancelled' %}
+                    <span style="color: var(--pico-muted-color);">已取消</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if q.retry_count > 0 %}
+                    <small>重试 {{ q.retry_count }}/{{ q.max_retries }}</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <small>{{ q.created_at | datetime }}</small>
+                </td>
+                <td>
+                    {% if q.status in ('pending', 'processing') %}
+                    <form method="POST" action="/app/transfers/pause" style="display: inline;">
+                        <input type="hidden" name="queue_id" value="{{ q.id }}">
+                        <button type="submit" class="outline secondary" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">暂停</button>
+                    </form>
+                    <form method="POST" action="/app/transfers/cancel" style="display: inline;"
+                          onsubmit="return confirm('确定取消此传输？');">
+                        <input type="hidden" name="queue_id" value="{{ q.id }}">
+                        <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; color: var(--pico-del-color);">取消</button>
+                    </form>
+                    {% elif q.status == 'paused' %}
+                    <form method="POST" action="/app/transfers/resume" style="display: inline;">
+                        <input type="hidden" name="queue_id" value="{{ q.id }}">
+                        <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">继续</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not queue_items %}
+            <tr><td colspan="7" style="text-align: center;">暂无传输记录</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

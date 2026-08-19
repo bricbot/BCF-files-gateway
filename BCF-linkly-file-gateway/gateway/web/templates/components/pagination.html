@@ -1,0 +1,22 @@
+<!-- 分页组件 HTMX 片段 -->
+{% if total_pages > 1 %}
+<nav style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem;">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}" class="outline" style="padding: 0.3rem 0.6rem;">上一页</a>
+    {% endif %}
+
+    {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+        <strong style="padding: 0.3rem 0.6rem; background: var(--pico-primary); color: white; border-radius: 4px;">{{ p }}</strong>
+        {% elif p <= 3 or p > total_pages - 3 or (p >= page - 1 and p <= page + 1) %}
+        <a href="?page={{ p }}" class="outline" style="padding: 0.3rem 0.6rem;">{{ p }}</a>
+        {% elif p == 4 or p == total_pages - 3 %}
+        <span style="padding: 0.3rem 0.6rem;">...</span>
+        {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}" class="outline" style="padding: 0.3rem 0.6rem;">下一页</a>
+    {% endif %}
+</nav>
+{% endif %}

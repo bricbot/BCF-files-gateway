@@ -1,0 +1,56 @@
+/* 文件入库审批系统 - 自定义样式 */
+
+[x-cloak] { display: none !important; }
+
+/* 导航栏优化 */
+nav ul li a {
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+nav ul li a:hover {
+    opacity: 0.8;
+}
+
+/* 表格优化 */
+table {
+    font-size: 0.9rem;
+}
+table th {
+    white-space: nowrap;
+}
+
+/* 卡片间距 */
+article {
+    margin-bottom: 1rem;
+}
+
+/* 状态标签 */
+.badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-primary { background: var(--pico-primary); color: white; }
+.badge-success { background: var(--pico-ins-color); color: white; }
+.badge-danger { background: var(--pico-del-color); color: white; }
+.badge-warning { background: #ffc107; color: #333; }
+
+/* 复核高亮 */
+.review-highlight {
+    border-left: 4px solid #ffc107;
+    background: #fff8e1;
+}
+
+/* 表单紧凑 */
+form label {
+    margin-bottom: 0.5rem;
+}
+
+/* 按钮组 */
+.btn-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}

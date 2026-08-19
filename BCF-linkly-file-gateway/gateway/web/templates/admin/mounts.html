@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}挂载点管理{% endblock %}
+{% block content %}
+<div x-data="{ showForm: false }">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>挂载点管理</h2>
+        <button @click="showForm = !showForm" class="outline">+ 新建挂载点</button>
+    </div>
+
+    <!-- 新建/编辑表单 -->
+    <article x-show="showForm" x-cloak>
+        <h4 x-text="editing ? '编辑挂载点' : '新建挂载点'"></h4>
+        <form method="POST" action="/app/admin/mounts/save">
+            <input type="hidden" name="mount_id" x-model="editingId">
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <label>名称
+                    <input type="text" name="name" required x-model="form.name">
+                </label>
+                <label>协议类型
+                    <select name="protocol" x-model="form.protocol">
+                        <option value="local">本地目录</option>
+                        <option value="smb">SMB/CIFS</option>
+                        <option value="ftp">FTP</option>
+                        <option value="webdav">WebDAV</option>
+                        <option value="scp">SCP/SFTP</option>
+                    </select>
+                </label>
+                <label>主机地址
+                    <input type="text" name="host" x-model="form.host" placeholder="IP 或域名">
+                </label>
+                <label>端口
+                    <input type="number" name="port" x-model="form.port" placeholder="默认端口">
+                </label>
+                <label>远程路径
+                    <input type="text" name="remote_path" required x-model="form.remote_path" placeholder="/path/to/dir">
+                </label>
+                <label>挂载类型
+                    <select name="mount_type" x-model="form.mount_type">
+                        <option value="source">来源目录</option>
+                        <option value="target">入库目录</option>
+                    </select>
+                </label>
+                <label>用户名
+                    <input type="text" name="username" x-model="form.username">
+                </label>
+                <label>密码
+                    <input type="password" name="password" x-model="form.password" placeholder="留空则不修改">
+                </label>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit">保存</button>
+                <button type="button" class="outline secondary" @click="showForm = false">取消</button>
+            </div>
+        </form>
+    </article>
+
+    <!-- 挂载点列表 -->
+    <table>
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>协议</th>
+                <th>主机</th>
+                <th>路径</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in mounts %}
+            <tr>
+                <td>{{ m.name }}</td>
+                <td>{{ m.protocol | upper }}</td>
+                <td>{{ m.host }}</td>
+                <td>{{ m.remote_path }}</td>
+                <td>
+                    {% if m.mount_type == 'source' %}
+                    <span style="color: var(--pico-primary);">来源</span>
+                    {% else %}
+                    <span style="color: var(--pico-ins-color);">入库</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if m.is_active %}
+                    <span style="color: var(--pico-ins-color);">启用</span>
+                    {% else %}
+                    <span style="color: var(--pico-del-color);">禁用</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="POST" action="/app/admin/mounts/test" style="display: inline;">
+                        <input type="hidden" name="mount_id" value="{{ m.id }}">
+                        <button type="submit" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">测试</button>
+                    </form>
+                    <a href="/app/admin/mounts/edit/{{ m.id }}" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">编辑</a>
+                    <form method="POST" action="/app/admin/mounts/delete" style="display: inline;"
+                          onsubmit="return confirm('确定删除此挂载点？');">
+                        <input type="hidden" name="mount_id" value="{{ m.id }}">
+                        <button type="submit" class="outline" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; color: var(--pico-del-color);">删除</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not mounts %}
+            <tr><td colspan="7" style="text-align: center;">暂无挂载点</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    {% if test_result is not none %}
+    <article style="background: {% if test_result %}#d4edda{% else %}#f8d7da{% endif %}; padding: 1rem;">
+        <strong>连接测试结果：</strong>{% if test_result %}连接成功{% else %}连接失败{% endif %}
+    </article>
+    {% endif %}
+</div>
+{% endblock %}

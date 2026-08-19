@@ -1,0 +1,16 @@
+host = "0.0.0.0"            # 绑定地址，局域网可访问
+port = 8790                 # 下载端口（避开已占用的 60606/8080 等）
+allowed_roots = [           # 白名单知识库根目录，按实际情况修改
+  "/Users/myertai/KB/设计、工艺、装备_c-technical-documents/设计图集",
+  "/Users/myertai/KB/设计、工艺、装备_c-technical-documents/设计标准、规范"
+]
+link_ttl_seconds = 3600     # 链接默认有效期 1 小时
+daily_limit = 10            # 每用户每天可创建下载链接的次数
+db_path = "data/gateway.db" # SQLite 数据库文件路径（相对项目根目录）
+secret = "735a072b3eac14f8a85596adaee29f26ca59774a6fb2fbfff3418103cde1a063"
+
+# 开发者白名单：指定用户可解除特定限制
+# 可解除的限制："quota"（每日下载额度）、"whitelist"（白名单目录）
+[[developers]]
+user_id = "dev_admin"
+permissions = ["quota", "whitelist"]

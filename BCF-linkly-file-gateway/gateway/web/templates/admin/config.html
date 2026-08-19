@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}系统配置{% endblock %}
+{% block content %}
+<h2>系统配置</h2>
+
+<form method="POST" action="/app/admin/config/save">
+    <article>
+        <h4>扫描与传输</h4>
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+            <label>自动扫描间隔（分钟）
+                <input type="number" name="scan_interval_minutes" value="{{ config.get('scan_interval_minutes', '10') }}" min="1">
+                <small>每隔多少分钟自动扫描源目录中的新文件</small>
+            </label>
+            <label>传输失败最大重试次数
+                <input type="number" name="max_retry_count" value="{{ config.get('max_retry_count', '1') }}" min="0" max="5">
+            </label>
+            <label>同时传输并发数
+                <input type="number" name="max_concurrent_transfers" value="{{ config.get('max_concurrent_transfers', '3') }}" min="1" max="20">
+                <small>建议不超过 10 个并发</small>
+            </label>
+            <label>单任务最大文件数
+                <input type="number" name="max_files_per_task" value="{{ config.get('max_files_per_task', '10000') }}" min="100">
+            </label>
+        </div>
+    </article>
+
+    <article>
+        <h4>任务设置</h4>
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+            <label>一次性任务默认有效天数
+                <input type="number" name="onetime_task_default_days" value="{{ config.get('onetime_task_default_days', '30') }}" min="1">
+            </label>
+            <label>单文件大小上限（MB）
+                <input type="number" name="max_upload_size_mb" value="{{ config.get('max_upload_size_mb', '500') }}" min="1">
+            </label>
+            <label>允许的文件类型
+                <input type="text" name="allowed_file_extensions" value="{{ config.get('allowed_file_extensions', '*') }}">
+                <small>用逗号分隔扩展名，* 表示全部</small>
+            </label>
+        </div>
+    </article>
+
+    <article>
+        <h4>安全策略</h4>
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+            <label>密码最小长度
+                <input type="number" name="password_min_length" value="{{ config.get('password_min_length', '8') }}" min="6" max="32">
+            </label>
+            <label>登录会话超时（分钟）
+                <input type="number" name="session_timeout_minutes" value="{{ config.get('session_timeout_minutes', '480') }}" min="30">
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" name="password_require_special"
+                       {% if config.get('password_require_special', 'false') == 'true' %}checked{% endif %}
+                       value="true">
+                密码要求特殊字符
+            </label>
+        </div>
+    </article>
+
+    {% if msg %}
+    <p style="color: var(--pico-ins-color);">{{ msg }}</p>
+    {% endif %}
+    <button type="submit">保存配置</button>
+</form>
+{% endblock %}

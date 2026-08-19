@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ task.name }} - 审批详情{% endblock %}
+{% block content %}
+<div x-data="{ selected: [], rejectReason: '', showReject: false, showWithdraw: false, withdrawReason: '' }">
+    <header style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h2>{{ task.name }}</h2>
+            {% if task.task_type == 'permanent' %}
+            <span style="background: var(--pico-primary); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">常驻任务</span>
+            {% else %}
+            <span style="background: var(--pico-contrast); color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">一次性任务</span>
+            {% if task.end_time %}<small> 截止: {{ task.end_time | datetime }}</small>{% endif %}
+            {% endif %}
+            {% if task.description %}<p>{{ task.description }}</p>{% endif %}
+        </div>
+        <form method="POST" action="/app/task/{{ task.id }}/scan">
+            <button type="submit" class="outline">刷新扫描</button>
+        </form>
+    </header>
+
+    <div style="display: flex; gap: 2rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+        <span>来源: <strong>{{ task.source_name }}</strong></span>
+        <span>入库: <strong>{{ task.target_name }}</strong></span>
+    </div>
+
+    {% if scan_result %}
+    <article style="background: #d4edda; padding: 0.8rem; margin-bottom: 1rem;">
+        扫描完成：新增 {{ scan_result.new }} 个文件，移除 {{ scan_result.removed }} 个，当前共 {{ scan_result.total }} 个
+    </article>
+    {% endif %}
+
+    {# 管理员视角：复核入库列表在待审批列表前面 #}
+    {% if user.role == 'admin' %}
+        {% include 'reviewer/_reviewing_section.html' %}
+    {% endif %}
+
+    <!-- 待审批文件列表 -->
+    <h3>待审批文件 ({{ pending_files | length }})</h3>
+
+    {% if pending_files %}
+    <!-- 批量操作栏 -->
+    <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;">
+        <label style="display: flex; align-items: center; gap: 0.3rem;">
+            <input type="checkbox" @change="if($event.target.checked) { selected = {{ pending_files | map(attribute='id') | list }} } else { selected = [] }">
+            全选
+        </label>
+        <span x-show="selected.length > 0">已选 <strong x-text="selected.length"></strong> 个</span>
+        <button x-show="selected.length > 0" class="outline" style="padding: 0.3rem 0.6rem;"
+                hx-post="/app/task/{{ task.id }}/approve"
+                hx-vals='js:{file_ids: JSON.stringify(selected)}'
+                hx-target="#file-list" hx-swap="outerHTML">批准入库</button>
+        <button x-show="selected.length > 0" @click="showReject = true" class="outline" style="padding: 0.3rem 0.6rem; color: var(--pico-del-color);">拒绝入库</button>
+        <button x-show="selected.length > 0" class="outline" style="padding: 0.3rem 0.6rem; color: #f57c00;"
+                hx-post="/app/task/{{ task.id }}/review"
+                hx-vals='js:{file_ids: JSON.stringify(selected)}'
+                hx-target="#file-list" hx-swap="outerHTML">复核入库</button>
+    </div>
+
+    <!-- 拒绝对话框 -->
+    <dialog x-show="showReject" x-cloak>
+        <article>
+            <h4>拒绝入库</h4>
+            <form method="POST" action="/app/task/{{ task.id }}/reject">
+                <template x-for="id in selected" :key="id">
+                    <input type="hidden" name="file_ids" :value="id">
+                </template>
+                <label>拒绝原因（选填）
+                    <textarea name="reject_reason" rows="3" x-model="rejectReason"></textarea>
+                </label>
+                <small>批量拒绝时如填写原因，将自动追加【批拒：时间戳】</small>
+                <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                    <button type="submit">确认拒绝</button>
+                    <button type="button" class="outline secondary" @click="showReject = false; rejectReason = ''">取消</button>
+                </div>
+            </form>
+        </article>
+    </dialog>
+
+    <!-- 文件列表 -->
+    <div id="file-list">
+        <table>
+            <thead>
+                <tr><th></th><th>文件名</th><th>路径</th><th>大小</th><th>修改时间</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+                {% for f in pending_files %}
+                <tr>
+                    <td><input type="checkbox" :value="{{ f.id }}" x-model="selected"></td>
+                    <td>{{ f.file_name }}</td>
+                    <td><small>{{ f.file_path }}</small></td>
+                    <td>{{ f.file_size | filesize }}</td>
+                    <td>{{ f.file_mtime | datetime }}</td>
+                    <td>
+                        <form method="POST" action="/app/task/{{ task.id }}/approve" style="display: inline;">
+                            <input type="hidden" name="file_ids" value="{{ f.id }}">
+                            <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">批准</button>
+                        </form>
+                        <form method="POST" action="/app/task/{{ task.id }}/reject" style="display: inline;">
+                            <input type="hidden" name="file_ids" value="{{ f.id }}">
+                            <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; color: var(--pico-del-color);">拒绝</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="text-align: center; color: var(--pico-muted-color);">暂无待审批文件</p>
+    {% endif %}
+
+    {# 审批员视角：复核入库列表在待审批列表后面 #}
+    {% if user.role != 'admin' %}
+        {% include 'reviewer/_reviewing_section.html' %}
+    {% endif %}
+</div>
+{% endblock %}

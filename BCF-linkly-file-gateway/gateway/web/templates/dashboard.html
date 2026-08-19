@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}仪表盘{% endblock %}
+{% block content %}
+<h2>仪表盘</h2>
+
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+    <article style="background: var(--pico-card-background-color);">
+        <h4>我的待审批</h4>
+        <p style="font-size: 2rem; font-weight: bold; color: var(--pico-primary);">{{ stats.pending_count }}</p>
+        <a href="/app/tasks" role="button" class="outline">查看任务</a>
+    </article>
+
+    <article style="background: var(--pico-card-background-color);">
+        <h4>传输中</h4>
+        <p style="font-size: 2rem; font-weight: bold; color: var(--pico-ins-color);">{{ stats.transferring_count }}</p>
+        <a href="/app/transfers" role="button" class="outline">查看详情</a>
+    </article>
+
+    <article style="background: var(--pico-card-background-color);">
+        <h4>已完成</h4>
+        <p style="font-size: 2rem; font-weight: bold;">{{ stats.completed_count }}</p>
+        <small>今日处理文件数</small>
+    </article>
+
+    {% if user.role == 'admin' %}
+    <article style="background: var(--pico-card-background-color);">
+        <h4>系统概况</h4>
+        <p>用户数: <strong>{{ stats.user_count }}</strong></p>
+        <p>任务数: <strong>{{ stats.task_count }}</strong></p>
+        <p>挂载点: <strong>{{ stats.mount_count }}</strong></p>
+    </article>
+    {% endif %}
+</div>
+
+{% if user.role == 'admin' %}
+<h3>最近操作日志</h3>
+<table>
+    <thead>
+        <tr><th>时间</th><th>用户</th><th>操作</th><th>详情</th></tr>
+    </thead>
+    <tbody>
+        {% for log in recent_logs %}
+        <tr>
+            <td>{{ log.created_at | datetime }}</td>
+            <td>{{ log.nickname or log.username }}</td>
+            <td>{{ log.action }}</td>
+            <td>{{ (log.detail or '') | truncate(80) }}</td>
+        </tr>
+        {% endfor %}
+        {% if not recent_logs %}
+        <tr><td colspan="4" style="text-align: center;">暂无日志</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}
