@@ -2,24 +2,38 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
 import base64
-import hashlib
 
 from .models import _connect
 
+logger = logging.getLogger(__name__)
 
 # ── 加密工具（挂载点密码存储） ──
 
+# 固定 salt 用于从 secret 派生 Fernet 密钥。生产环境建议通过 APP_SECRET
+# 环境变量提供独立随机密钥，而非依赖此派生逻辑。
+_KDF_SALT = b"bcf-file-gateway-fernet-kdf-v1"
+_KDF_ITERATIONS = 480_000  # OWASP 2023 推荐 PBKDF2-SHA256 最低迭代数
+
+
 def _derive_key(secret: str) -> bytes:
-    """从 config secret 派生 Fernet 密钥。"""
-    digest = hashlib.sha256(secret.encode()).digest()
-    return base64.urlsafe_b64encode(digest)
+    """从 config secret 通过 PBKDF2 派生 Fernet 密钥。"""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=_KDF_SALT,
+        iterations=_KDF_ITERATIONS,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(secret.encode()))
 
 
 def encrypt_password(plain: str, secret: str) -> str:
@@ -158,6 +172,7 @@ class SMBAdapter(ProtocolAdapter):
             _, session, tree = self._get_connection()
             return True
         except Exception:
+            logger.warning("SMB test_connection failed for %s:%s", self.host, self.port, exc_info=True)
             return False
 
     def _walk_dir(self, tree, remote_dir: str) -> list[FileInfo]:
@@ -194,13 +209,14 @@ class SMBAdapter(ProtocolAdapter):
                         mtime=time.time(), is_dir=False,
                     ))
         except Exception:
-            pass
+            logger.debug("SMB _walk_dir failed at %s", remote_dir, exc_info=True)
         return results
 
     def list_files(self, remote_path: str = "") -> list[FileInfo]:
         try:
             _, session, tree = self._get_connection()
         except Exception:
+            logger.warning("SMB list_files connection failed for %s:%s", self.host, self.port, exc_info=True)
             return []
         return self._walk_dir(tree, self.remote_path)
 
@@ -248,7 +264,7 @@ class SMBAdapter(ProtocolAdapter):
             )
             dir_open.close()
         except Exception:
-            pass
+            logger.debug("SMB ensure directory failed: %s", dest_dir, exc_info=True)
         # 移动文件
         file_open = Open(tree, src)
         file_open.create(
@@ -277,7 +293,7 @@ class SMBAdapter(ProtocolAdapter):
             )
             dir_open.close()
         except Exception:
-            pass
+            logger.debug("SMB ensure directory failed: %s", dir_path, exc_info=True)
         file_open = Open(tree, full_path)
         file_open.create(
             impersonation_level=2,
@@ -304,7 +320,7 @@ class SMBAdapter(ProtocolAdapter):
             )
             dir_open.close()
         except Exception:
-            pass
+            logger.debug("SMB ensure directory failed: %s", dir_path, exc_info=True)
         with open(local_path, "rb") as f:
             data = f.read()
         file_open = Open(tree, full_path)
@@ -341,6 +357,7 @@ class FTPAdapter(ProtocolAdapter):
             ftp.quit()
             return True
         except Exception:
+            logger.warning("FTP test_connection failed for %s:%s", self.host, self.port, exc_info=True)
             return False
 
     def _list_dir_recursive(self, ftp, ftp_dir: str, base_rel: str, results: list) -> None:
@@ -368,7 +385,7 @@ class FTPAdapter(ProtocolAdapter):
                         size=size, mtime=time.time(), is_dir=False,
                     ))
         except Exception:
-            pass
+            logger.debug("FTP _list_dir_recursive failed at %s", ftp_dir, exc_info=True)
 
     def list_files(self, remote_path: str = "") -> list[FileInfo]:
         results = []
@@ -379,7 +396,7 @@ class FTPAdapter(ProtocolAdapter):
             self._list_dir_recursive(ftp, ftp_dir, "", results)
             ftp.quit()
         except Exception:
-            pass
+            logger.warning("FTP list_files failed for %s:%s", self.host, self.port, exc_info=True)
         return results
 
     def copy_file(self, src_rel_path: str, local_dest: str) -> None:
@@ -471,6 +488,7 @@ class WebDAVAdapter(ProtocolAdapter):
             client.list()
             return True
         except Exception:
+            logger.warning("WebDAV test_connection failed for %s:%s", self.host, self.port, exc_info=True)
             return False
 
     def _list_dir_recursive(self, client, dir_path: str, base_rel: str, results: list) -> None:
@@ -493,9 +511,10 @@ class WebDAVAdapter(ProtocolAdapter):
                             size=size, mtime=time.time(), is_dir=False,
                         ))
                 except Exception:
+                    logger.debug("WebDAV info failed for %s", rel, exc_info=True)
                     continue
         except Exception:
-            pass
+            logger.warning("WebDAV _list_dir_recursive failed", exc_info=True)
 
     def list_files(self, remote_path: str = "") -> list[FileInfo]:
         results = []
@@ -503,7 +522,7 @@ class WebDAVAdapter(ProtocolAdapter):
             client = self._get_client()
             self._list_dir_recursive(client, "", "", results)
         except Exception:
-            pass
+            logger.warning("WebDAV list_files failed for %s:%s", self.host, self.port, exc_info=True)
         return results
 
     def copy_file(self, src_rel_path: str, local_dest: str) -> None:
@@ -519,12 +538,12 @@ class WebDAVAdapter(ProtocolAdapter):
         try:
             client.mkdir(status_dir)
         except Exception:
-            pass
+            logger.debug("WebDAV mkdir failed: %s", status_dir, exc_info=True)
         dest_dir = "/".join(dest.split("/")[:-1])
         try:
             client.mkdir(dest_dir)
         except Exception:
-            pass
+            logger.debug("WebDAV mkdir failed: %s", dest_dir, exc_info=True)
         client.move(src_rel_path, dest)
 
     def write_text_file(self, rel_path: str, content: str) -> None:
@@ -537,7 +556,7 @@ class WebDAVAdapter(ProtocolAdapter):
             try:
                 client.mkdir(dir_path)
             except Exception:
-                pass
+                logger.debug("WebDAV mkdir failed: %s", dir_path, exc_info=True)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
@@ -554,7 +573,7 @@ class WebDAVAdapter(ProtocolAdapter):
             try:
                 client.mkdir(dir_path)
             except Exception:
-                pass
+                logger.debug("WebDAV mkdir failed: %s", dir_path, exc_info=True)
         client.upload_sync(local_path, dest_rel_path)
 
 
@@ -582,6 +601,7 @@ class SCPAdapter(ProtocolAdapter):
             transport.close()
             return True
         except Exception:
+            logger.warning("SCP test_connection failed for %s:%s", self.host, self.port, exc_info=True)
             return False
 
     def _list_dir_recursive(self, sftp, remote_dir: str, base_rel: str, results: list) -> None:
@@ -605,7 +625,7 @@ class SCPAdapter(ProtocolAdapter):
                         mtime=entry.st_mtime or time.time(), is_dir=False,
                     ))
         except Exception:
-            pass
+            logger.debug("SCP _list_dir_recursive failed at %s", remote_dir, exc_info=True)
 
     def list_files(self, remote_path: str = "") -> list[FileInfo]:
         results = []
@@ -616,7 +636,7 @@ class SCPAdapter(ProtocolAdapter):
             sftp.close()
             transport.close()
         except Exception:
-            pass
+            logger.warning("SCP list_files failed for %s:%s", self.host, self.port, exc_info=True)
         return results
 
     def copy_file(self, src_rel_path: str, local_dest: str) -> None:
@@ -650,7 +670,7 @@ class SCPAdapter(ProtocolAdapter):
                 except OSError:
                     pass
         except Exception:
-            pass
+            logger.debug("SCP move_to_status_dir mkdir failed", exc_info=True)
         sftp.rename(src, dest)
         sftp.close()
         transport.close()
@@ -777,4 +797,5 @@ def test_mount_connection(mount: dict, secret: str) -> bool:
         adapter = create_adapter(mount, secret)
         return adapter.test_connection()
     except Exception:
+        logger.warning("test_mount_connection failed for mount %s", mount.get("name", "?"), exc_info=True)
         return False

@@ -1,10 +1,13 @@
 """配置加载与校验。
 
-读取项目根目录下的 config.toml；secret 为空时自动生成随机密钥并写回文件。
+读取项目根目录下的 config.toml；secret 优先从环境变量 APP_SECRET 读取，
+若未设置则回退到 config.toml 中的 secret 字段；均为空时自动生成随机密钥
+并写回文件（仅限本地开发，生产环境应设置 APP_SECRET）。
 """
 
 from __future__ import annotations
 
+import os
 import secrets
 import socket
 import subprocess
@@ -92,7 +95,8 @@ def load_config(config_path: Path | None = None) -> Config:
     if not db_path.is_absolute():
         db_path = path.parent / db_path
 
-    secret = data.get("secret", "")
+    # 优先从环境变量读取 secret（生产环境推荐）
+    secret = os.environ.get("APP_SECRET", "") or data.get("secret", "")
     if not secret:
         secret = secrets.token_hex(32)
         data["secret"] = secret

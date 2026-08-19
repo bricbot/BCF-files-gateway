@@ -181,7 +181,7 @@ class TransferWorker:
             try:
                 src_adapter.move_to_status_dir(src_path, ".exception")
             except Exception:
-                pass
+                logger.warning("Failed to move %s to .exception directory", src_path, exc_info=True)
             # 写入异常日志
             self._write_exception_log(src_adapter, src_path, last_error)
             with _connect(self.db_path) as conn:

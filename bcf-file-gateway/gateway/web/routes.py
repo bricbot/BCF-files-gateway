@@ -96,7 +96,7 @@ def create_web_router() -> APIRouter:
         log_action(db_path, user["id"], "login", ip_address=request.client.host if request.client else None)
         resp = RedirectResponse("/app/dashboard", status_code=302)
         timeout = int(get_config(db_path, "session_timeout_minutes", "480"))
-        resp.set_cookie("session_token", token, max_age=timeout * 60, httponly=True)
+        resp.set_cookie("session_token", token, max_age=timeout * 60, httponly=True, samesite="lax")
         return resp
 
     @router.post("/register")
@@ -135,7 +135,7 @@ def create_web_router() -> APIRouter:
         log_action(db_path, uid, "create_admin", detail={"username": username})
         token = create_session_token(secret, uid, "admin")
         resp = RedirectResponse("/app/dashboard", status_code=302)
-        resp.set_cookie("session_token", token, max_age=86400 * 30, httponly=True)
+        resp.set_cookie("session_token", token, max_age=86400 * 30, httponly=True, samesite="lax")
         return resp
 
     @router.get("/logout")
