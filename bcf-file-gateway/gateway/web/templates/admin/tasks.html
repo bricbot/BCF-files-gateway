@@ -1,27 +1,53 @@
 {% extends "base.html" %}
 {% block title %}任务管理{% endblock %}
 {% block content %}
-<div x-data="{ showForm: false }">
+<div x-data="{
+    showForm: false,
+    editingId: '',
+    taskType: 'permanent',
+    form: { name: '', description: '', source_mount_id: '', target_mount_id: '', task_type: 'permanent', end_time: '', assignee_ids: [] },
+    openEdit(t) {
+        this.editingId = t.id;
+        this.form = {
+            name: t.name,
+            description: t.description || '',
+            source_mount_id: String(t.source_mount_id),
+            target_mount_id: String(t.target_mount_id),
+            task_type: t.task_type,
+            end_time: t.end_time ? new Date(t.end_time * 1000).toISOString().slice(0, 16) : '',
+            assignee_ids: t.assignees.map(a => String(a.id))
+        };
+        this.taskType = t.task_type;
+        this.showForm = true;
+    },
+    openNew() {
+        this.editingId = '';
+        this.form = { name: '', description: '', source_mount_id: '', target_mount_id: '', task_type: 'permanent', end_time: '', assignee_ids: [] };
+        this.taskType = 'permanent';
+        this.showForm = true;
+    }
+}">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2>审批任务管理</h2>
-        <button @click="showForm = !showForm" class="outline">+ 新建任务</button>
+        <button @click="openNew()" class="outline">+ 新建任务</button>
     </div>
 
     <article x-show="showForm" x-cloak>
-        <h4>新建审批任务</h4>
-        <form method="POST" action="/app/admin/tasks/save">
+        <h4 x-text="editingId ? '编辑审批任务' : '新建审批任务'"></h4>
+        <form method="POST" :action="editingId ? '/app/admin/tasks/update' : '/app/admin/tasks/save'">
+            <input type="hidden" name="task_id" x-model="editingId">
             <div class="grid" style="grid-template-columns: 1fr 1fr;">
                 <label>任务名称
-                    <input type="text" name="name" required>
+                    <input type="text" name="name" required x-model="form.name">
                 </label>
                 <label>任务类型
-                    <select name="task_type" x-model="taskType">
+                    <select name="task_type" x-model="form.task_type" @change="taskType = form.task_type">
                         <option value="permanent">常驻任务</option>
                         <option value="onetime">一次性任务</option>
                     </select>
                 </label>
                 <label>来源目录
-                    <select name="source_mount_id" required>
+                    <select name="source_mount_id" required x-model="form.source_mount_id">
                         <option value="">-- 选择来源挂载点 --</option>
                         {% for m in source_mounts %}
                         <option value="{{ m.id }}">{{ m.name }} ({{ m.remote_path }})</option>
@@ -29,7 +55,7 @@
                     </select>
                 </label>
                 <label>入库目录
-                    <select name="target_mount_id" required>
+                    <select name="target_mount_id" required x-model="form.target_mount_id">
                         <option value="">-- 选择入库挂载点 --</option>
                         {% for m in target_mounts %}
                         <option value="{{ m.id }}">{{ m.name }} ({{ m.remote_path }})</option>
@@ -38,25 +64,26 @@
                 </label>
             </div>
             <label>任务描述
-                <textarea name="description" rows="2"></textarea>
+                <textarea name="description" rows="2" x-model="form.description"></textarea>
             </label>
             <div x-show="taskType === 'onetime'">
                 <label>结束时间
-                    <input type="datetime-local" name="end_time">
+                    <input type="datetime-local" name="end_time" x-model="form.end_time">
                 </label>
             </div>
             <label>审批人（可多选）
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                     {% for u in reviewers %}
                     <label style="display: flex; align-items: center; gap: 0.3rem;">
-                        <input type="checkbox" name="assignee_ids" value="{{ u.id }}">
+                        <input type="checkbox" name="assignee_ids" value="{{ u.id }}"
+                               :checked="form.assignee_ids.includes('{{ u.id }}')">
                         {{ u.nickname or u.username }}
                     </label>
                     {% endfor %}
                 </div>
             </label>
             <div style="display: flex; gap: 1rem;">
-                <button type="submit">创建任务</button>
+                <button type="submit" x-text="editingId ? '保存修改' : '创建任务'"></button>
                 <button type="button" class="outline secondary" @click="showForm = false">取消</button>
             </div>
         </form>
@@ -102,6 +129,16 @@
                     {% endif %}
                 </td>
                 <td>
+                    <button type="button" @click="openEdit({
+                        id: {{ t.id }},
+                        name: '{{ t.name }}',
+                        description: '{{ t.description or '' }}',
+                        source_mount_id: {{ t.source_mount_id }},
+                        target_mount_id: {{ t.target_mount_id }},
+                        task_type: '{{ t.task_type }}',
+                        end_time: {{ t.end_time or 0 }},
+                        assignees: [{% for a in t.assignees %}{id: {{ a.id }}}{% if not loop.last %},{% endif %}{% endfor %}]
+                    })" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">编辑</button>
                     <a href="/app/task/{{ t.id }}" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">详情</a>
                     <form method="POST" action="/app/admin/tasks/scan" style="display: inline;">
                         <input type="hidden" name="task_id" value="{{ t.id }}">

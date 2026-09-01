@@ -25,6 +25,20 @@
     </article>
 
     <article>
+        <h4>扫描过滤</h4>
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+            <label>允许的文件扩展名
+                <input type="text" name="allowed_file_extensions" value="{{ config.get('allowed_file_extensions', '.pdf,.ppt,.pptx,.jpg,.png,.xls,.xlsx,.doc,.docx') }}">
+                <small>逗号分隔扩展名，* 表示全部</small>
+            </label>
+            <label>排除的文件夹
+                <input type="text" name="excluded_folders" value="{{ config.get('excluded_folders', '') }}">
+                <small>逗号分隔文件夹名称，留空表示不过滤</small>
+            </label>
+        </div>
+    </article>
+
+    <article>
         <h4>任务设置</h4>
         <div class="grid" style="grid-template-columns: 1fr 1fr;">
             <label>一次性任务默认有效天数
@@ -32,10 +46,6 @@
             </label>
             <label>单文件大小上限（MB）
                 <input type="number" name="max_upload_size_mb" value="{{ config.get('max_upload_size_mb', '500') }}" min="1">
-            </label>
-            <label>允许的文件类型
-                <input type="text" name="allowed_file_extensions" value="{{ config.get('allowed_file_extensions', '*') }}">
-                <small>用逗号分隔扩展名，* 表示全部</small>
             </label>
         </div>
     </article>

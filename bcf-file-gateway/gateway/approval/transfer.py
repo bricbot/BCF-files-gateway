@@ -140,7 +140,7 @@ class TransferWorker:
                 elif action == "reject":
                     # 移动到 .rejected 目录
                     src_adapter.move_to_status_dir(src_path, ".rejected")
-                    # 写入拒绝原因
+                    # 写入拒绝原因到 .rejected 目录（跟随被拒绝的文件）
                     self._write_reject_reason(src_adapter, src_path, queue_item)
                 elif action == "review":
                     # 移动到 .review 目录
@@ -149,7 +149,8 @@ class TransferWorker:
                 break
             except Exception as e:
                 last_error = str(e)
-                logger.warning("Transfer attempt %d failed for %s: %s", attempt + 1, src_path, e)
+                logger.warning("Transfer attempt %d failed for %s (action=%s): %s",
+                               attempt + 1, src_path, action, e, exc_info=True)
                 if attempt < max_retries:
                     with _connect(self.db_path) as conn:
                         conn.execute(
@@ -177,9 +178,10 @@ class TransferWorker:
                     )
             logger.info("Transfer completed: %s -> %s", src_path, action)
         else:
-            # 传输失败，移动到 .exception 目录
+            # 传输失败，尝试移动到 .exception 目录
             try:
                 src_adapter.move_to_status_dir(src_path, ".exception")
+                logger.info("Moved failed file %s to .exception directory", src_path)
             except Exception:
                 logger.warning("Failed to move %s to .exception directory", src_path, exc_info=True)
             # 写入异常日志
@@ -194,10 +196,10 @@ class TransferWorker:
                     "UPDATE file_records SET status = 'exception', updated_at = ? WHERE id = ?",
                     (now, file_record_id),
                 )
-            logger.error("Transfer failed permanently: %s - %s", src_path, last_error)
+            logger.error("Transfer failed permanently: %s (action=%s) - %s", src_path, action, last_error)
 
     def _write_reject_reason(self, adapter, src_path: str, queue_item: dict) -> None:
-        """写入拒绝原因文件。"""
+        """写入拒绝原因文件到 .rejected 目录（跟随被拒绝的文件）。"""
         with _connect(self.db_path) as conn:
             fr = conn.execute(
                 "SELECT reject_reason FROM file_records WHERE id = ?",
@@ -208,11 +210,16 @@ class TransferWorker:
             return
         base_name = Path(src_path).stem
         reason_file = f"{base_name}-rej_reason.txt"
-        reason_path = str(Path(src_path).parent / reason_file)
+        # 将拒绝原因文件写入 .rejected 目录，与被拒绝的文件在一起
+        rel_parts = Path(src_path).parts
+        if len(rel_parts) > 1:
+            reason_path = str(Path(".rejected") / Path(*rel_parts[:-1]) / reason_file)
+        else:
+            reason_path = str(Path(".rejected") / reason_file)
         try:
             adapter.write_text_file(reason_path, reason)
         except Exception:
-            logger.warning("Failed to write reject reason file for %s", src_path)
+            logger.warning("Failed to write reject reason file for %s to %s", src_path, reason_path)
 
     def _write_exception_log(self, adapter, src_path: str, error: str) -> None:
         """写入异常日志文件。"""

@@ -84,6 +84,87 @@ class ProtocolAdapter:
         """从本地上传文件到远程指定相对路径。"""
         raise NotImplementedError
 
+    def create_directory(self, rel_path: str) -> None:
+        """在远程创建目录。"""
+        raise NotImplementedError
+
+    def delete_file(self, rel_path: str) -> None:
+        """删除远程文件。"""
+        raise NotImplementedError
+
+    def delete_directory(self, rel_path: str) -> None:
+        """删除远程目录。"""
+        raise NotImplementedError
+
+    def run_detailed_tests(self, test_mode: str = "read_write") -> dict:
+        """运行挂载点测试。
+
+        Args:
+            test_mode: 测试模式。
+                - "read_write": 测试创建文件夹、创建文件、写入文件（不删除）
+                - "read_write_delete": 测试创建文件夹、创建文件、写入文件，并测试删除文件和文件夹
+
+        Returns:
+            每项测试的结果字典。
+        """
+        import time
+        results = {
+            "create_directory": {"success": False, "message": ""},
+            "create_file": {"success": False, "message": ""},
+            "write_file": {"success": False, "message": ""},
+        }
+        if test_mode == "read_write_delete":
+            results["delete_file"] = {"success": False, "message": ""}
+            results["delete_directory"] = {"success": False, "message": ""}
+
+        test_dir = f".test_{int(time.time())}"
+        test_file = f"{test_dir}/test.txt"
+
+        # 测试 1: 创建文件夹
+        try:
+            self.create_directory(test_dir)
+            results["create_directory"] = {"success": True, "message": f"成功创建目录: {test_dir}"}
+        except Exception as e:
+            results["create_directory"] = {"success": False, "message": f"创建目录失败: {e}"}
+            return results
+
+        # 测试 2: 创建文本文件
+        try:
+            self.write_text_file(test_file, "")
+            results["create_file"] = {"success": True, "message": f"成功创建文件: {test_file}"}
+        except Exception as e:
+            results["create_file"] = {"success": False, "message": f"创建文件失败: {e}"}
+            return results
+
+        # 测试 3: 写入文本文件
+        try:
+            self.write_text_file(test_file, "Hello, BCF File Gateway!")
+            results["write_file"] = {"success": True, "message": f"成功写入文件: {test_file}"}
+        except Exception as e:
+            results["write_file"] = {"success": False, "message": f"写入文件失败: {e}"}
+
+        # 读写模式：不删除，保留测试文件
+        if test_mode == "read_write":
+            results["_test_dir"] = test_dir
+            return results
+
+        # 读写删模式：测试删除
+        # 测试 4: 删除文本文件
+        try:
+            self.delete_file(test_file)
+            results["delete_file"] = {"success": True, "message": f"成功删除文件: {test_file}"}
+        except Exception as e:
+            results["delete_file"] = {"success": False, "message": f"删除文件失败: {e}"}
+
+        # 测试 5: 删除文件夹
+        try:
+            self.delete_directory(test_dir)
+            results["delete_directory"] = {"success": True, "message": f"成功删除目录: {test_dir}"}
+        except Exception as e:
+            results["delete_directory"] = {"success": False, "message": f"删除目录失败: {e}"}
+
+        return results
+
 
 class LocalAdapter(ProtocolAdapter):
     """本地文件系统适配器（用于测试或本地目录）。"""
@@ -143,6 +224,21 @@ class LocalAdapter(ProtocolAdapter):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(local_path, str(dest))
 
+    def create_directory(self, rel_path: str) -> None:
+        dest = self.base / rel_path
+        dest.mkdir(parents=True, exist_ok=True)
+
+    def delete_file(self, rel_path: str) -> None:
+        dest = self.base / rel_path
+        if dest.exists():
+            dest.unlink()
+
+    def delete_directory(self, rel_path: str) -> None:
+        import shutil
+        dest = self.base / rel_path
+        if dest.exists():
+            shutil.rmtree(dest)
+
 
 class SMBAdapter(ProtocolAdapter):
     """SMB/CIFS 协议适配器。"""
@@ -155,17 +251,24 @@ class SMBAdapter(ProtocolAdapter):
         self.remote_path = remote_path.strip("/")
 
     def _get_connection(self):
+        import uuid
         from smbprotocol.connection import Connection
         from smbprotocol.session import Session
         from smbprotocol.tree import TreeConnect
-        conn = Connection(uuid_gen=True, server_name=self.host, port=self.port)
+        conn = Connection(uuid.uuid4(), server_name=self.host, port=self.port)
         conn.connect()
-        session = Session(conn, self.username, self.password)
+        session = Session(conn, self.username, self.password, require_encryption=False)
         session.connect()
         share = self.remote_path.split("/")[0] if self.remote_path else ""
         tree = TreeConnect(session, r"\\{}\{}".format(self.host, share))
         tree.connect()
         return conn, session, tree
+
+    def _get_sub_path(self, rel_path: str) -> str:
+        """获取相对于 share 的路径（去除 share 名称部分）。"""
+        parts = self.remote_path.split("/")
+        sub_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+        return f"{sub_path}/{rel_path}".strip("/") if sub_path else rel_path
 
     def test_connection(self) -> bool:
         try:
@@ -184,10 +287,11 @@ class SMBAdapter(ProtocolAdapter):
             dir_open = Open(tree, remote_dir)
             dir_open.create(
                 impersonation_level=2,
-                desired_access=FilePipePrinterAccessMask.FILE_LIST_DIRECTORY,
+                desired_access=FilePipePrinterAccessMask.GENERIC_READ,
                 share_access=ShareAccess.FILE_SHARE_READ,
                 create_disposition=CreateDisposition.FILE_OPEN,
                 create_options=CreateOptions.FILE_DIRECTORY_FILE,
+                file_attributes=FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
             )
             entries = dir_open.query_directory("*", FileInformationClass.FILE_DIRECTORY_INFORMATION)
             dir_open.close()
@@ -195,8 +299,8 @@ class SMBAdapter(ProtocolAdapter):
                 name = entry["file_name"].get_value().decode("utf-16-le", errors="replace")
                 if name in (".", ".."):
                     continue
-                attrs = entry.get("file_attributes", 0)
-                is_dir = bool(attrs & 0x10) if isinstance(attrs, int) else False
+                attrs = entry["file_attributes"].get_value()
+                is_dir = bool(attrs & 0x10)
                 rel = f"{remote_dir}/{name}" if remote_dir else name
                 if is_dir:
                     if name in (".accepted", ".rejected", ".exception", ".review"):
@@ -205,7 +309,7 @@ class SMBAdapter(ProtocolAdapter):
                 else:
                     results.append(FileInfo(
                         name=name, path=rel,
-                        size=entry.get("end_of_file", 0),
+                        size=entry["end_of_file"].get_value(),
                         mtime=time.time(), is_dir=False,
                     ))
         except Exception:
@@ -218,13 +322,27 @@ class SMBAdapter(ProtocolAdapter):
         except Exception:
             logger.warning("SMB list_files connection failed for %s:%s", self.host, self.port, exc_info=True)
             return []
-        return self._walk_dir(tree, self.remote_path)
+        # remote_path 的第一部分是 share 名称，已在 _get_connection 中连接
+        # 这里需要传入 share 之后的子路径
+        parts = self.remote_path.split("/")
+        sub_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+        results = self._walk_dir(tree, sub_path)
+        # _walk_dir 返回的路径是相对于 share 根的（包含 sub_path 前缀），
+        # 需要去掉 sub_path 前缀，使其相对于挂载点基目录，
+        # 与 copy_file/move_to_status_dir 等方法的 _get_sub_path 约定一致。
+        if sub_path:
+            prefix = sub_path + "/"
+            for f in results:
+                if f.path.startswith(prefix):
+                    f.path = f.path[len(prefix):]
+        return results
 
     def copy_file(self, src_rel_path: str, local_dest: str) -> None:
-        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
         from smbprotocol.file_info import FileInformationClass
+        from smbprotocol.exceptions import SMBException
         _, session, tree = self._get_connection()
-        full_path = f"{self.remote_path}/{src_rel_path}".strip("/")
+        full_path = self._get_sub_path(src_rel_path)
         dest = Path(local_dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
         file_open = Open(tree, full_path)
@@ -233,94 +351,157 @@ class SMBAdapter(ProtocolAdapter):
             desired_access=FilePipePrinterAccessMask.FILE_READ_DATA,
             share_access=ShareAccess.FILE_SHARE_READ,
             create_disposition=CreateDisposition.FILE_OPEN,
+            create_options=CreateOptions.FILE_NON_DIRECTORY_FILE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
         )
         data = b""
         offset = 0
         while True:
-            chunk = file_open.read(offset, 65536)
-            if not chunk:
+            try:
+                chunk = file_open.read(offset, 65536)
+                if not chunk:
+                    break
+                data += chunk
+                offset += len(chunk)
+            except SMBException:
+                # STATUS_END_OF_FILE - 已读取完所有数据
                 break
-            data += chunk
-            offset += len(chunk)
         file_open.close()
         with open(local_dest, "wb") as f:
             f.write(data)
 
     def move_to_status_dir(self, src_rel_path: str, status_dir: str) -> None:
-        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions
+        """移动文件到状态目录（.accepted/.rejected/.exception/.review）。"""
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
         _, session, tree = self._get_connection()
-        src = f"{self.remote_path}/{src_rel_path}".strip("/")
-        dest = f"{self.remote_path}/{status_dir}/{src_rel_path}".strip("/")
-        # 确保目标目录存在（通过创建一个临时文件再删除来创建目录）
-        dest_dir = "/".join(dest.split("/")[:-1])
-        try:
-            dir_open = Open(tree, dest_dir)
-            dir_open.create(
-                impersonation_level=2,
-                desired_access=FilePipePrinterAccessMask.FILE_LIST_DIRECTORY,
-                share_access=ShareAccess.FILE_SHARE_READ,
-                create_disposition=CreateDisposition.FILE_CREATE,
-                create_options=CreateOptions.FILE_DIRECTORY_FILE,
-            )
-            dir_open.close()
-        except Exception:
-            logger.debug("SMB ensure directory failed: %s", dest_dir, exc_info=True)
-        # 移动文件
-        file_open = Open(tree, src)
-        file_open.create(
+        src_path = self._get_sub_path(src_rel_path)
+        dest_path = self._get_sub_path(f"{status_dir}/{src_rel_path}")
+        # 确保目标目录存在（逐级创建）
+        dest_dir = "/".join(dest_path.split("/")[:-1])
+        if dest_dir:
+            parts = dest_dir.split("/")
+            current_path = ""
+            for part in parts:
+                current_path = f"{current_path}/{part}".strip("/")
+                try:
+                    dir_open = Open(tree, current_path)
+                    dir_open.create(
+                        impersonation_level=2,
+                        desired_access=FilePipePrinterAccessMask.GENERIC_READ,
+                        share_access=ShareAccess.FILE_SHARE_READ,
+                        create_disposition=CreateDisposition.FILE_CREATE,
+                        create_options=CreateOptions.FILE_DIRECTORY_FILE,
+                        file_attributes=FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                    )
+                    dir_open.close()
+                except Exception:
+                    pass  # 目录可能已存在
+        # 复制文件到目标位置
+        src_open = Open(tree, src_path)
+        src_open.create(
             impersonation_level=2,
-            desired_access=FilePipePrinterAccessMask.FILE_READ_DATA | FilePipePrinterAccessMask.FILE_WRITE_DATA | FilePipePrinterAccessMask.DELETE,
+            desired_access=FilePipePrinterAccessMask.FILE_READ_DATA,
             share_access=ShareAccess.FILE_SHARE_READ,
             create_disposition=CreateDisposition.FILE_OPEN,
+            create_options=CreateOptions.FILE_NON_DIRECTORY_FILE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
         )
-        file_open.set_file_info({"file_name": dest}, FileInformationClass.FILE_RENAME_INFORMATION)
-        file_open.close()
+        data = b""
+        offset = 0
+        while True:
+            try:
+                chunk = src_open.read(offset, 65536)
+                if not chunk:
+                    break
+                data += chunk
+                offset += len(chunk)
+            except Exception:
+                # STATUS_END_OF_FILE - 已读取完所有数据
+                break
+        src_open.close()
+        # 写入目标文件
+        dest_open = Open(tree, dest_path)
+        dest_open.create(
+            impersonation_level=2,
+            desired_access=FilePipePrinterAccessMask.FILE_WRITE_DATA,
+            share_access=ShareAccess.FILE_SHARE_READ,
+            create_disposition=CreateDisposition.FILE_OVERWRITE_IF,
+            create_options=CreateOptions.FILE_NON_DIRECTORY_FILE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
+        )
+        # 分块写入，避免超过 SMB 最大写入大小（通常 1MB）
+        write_offset = 0
+        chunk_size = 1024 * 1024  # 1MB
+        while write_offset < len(data):
+            chunk = data[write_offset:write_offset + chunk_size]
+            dest_open.write(chunk, write_offset)
+            write_offset += len(chunk)
+        dest_open.close()
+        # 删除源文件
+        src_del = Open(tree, src_path)
+        src_del.create(
+            impersonation_level=2,
+            desired_access=FilePipePrinterAccessMask.DELETE,
+            share_access=ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE | ShareAccess.FILE_SHARE_DELETE,
+            create_disposition=CreateDisposition.FILE_OPEN,
+            create_options=CreateOptions.FILE_DELETE_ON_CLOSE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
+        )
+        src_del.close()
 
     def write_text_file(self, rel_path: str, content: str) -> None:
-        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
         _, session, tree = self._get_connection()
-        full_path = f"{self.remote_path}/{rel_path}".strip("/")
+        parts = self.remote_path.split("/")
+        sub_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+        full_path = f"{sub_path}/{rel_path}".strip("/") if sub_path else rel_path
         # 确保目录存在
         dir_path = "/".join(full_path.split("/")[:-1])
-        try:
-            dir_open = Open(tree, dir_path)
-            dir_open.create(
-                impersonation_level=2,
-                desired_access=FilePipePrinterAccessMask.FILE_LIST_DIRECTORY,
-                share_access=ShareAccess.FILE_SHARE_READ,
-                create_disposition=CreateDisposition.FILE_CREATE,
-                create_options=CreateOptions.FILE_DIRECTORY_FILE,
-            )
-            dir_open.close()
-        except Exception:
-            logger.debug("SMB ensure directory failed: %s", dir_path, exc_info=True)
+        if dir_path:
+            try:
+                dir_open = Open(tree, dir_path)
+                dir_open.create(
+                    impersonation_level=2,
+                    desired_access=FilePipePrinterAccessMask.GENERIC_READ,
+                    share_access=ShareAccess.FILE_SHARE_READ,
+                    create_disposition=CreateDisposition.FILE_CREATE,
+                    create_options=CreateOptions.FILE_DIRECTORY_FILE,
+                    file_attributes=FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                )
+                dir_open.close()
+            except Exception:
+                logger.debug("SMB ensure directory failed: %s", dir_path, exc_info=True)
         file_open = Open(tree, full_path)
         file_open.create(
             impersonation_level=2,
             desired_access=FilePipePrinterAccessMask.FILE_WRITE_DATA,
             share_access=ShareAccess.FILE_SHARE_READ,
-            create_disposition=CreateDisposition.FILE_CREATE,
+            create_disposition=CreateDisposition.FILE_OVERWRITE_IF,
+            create_options=CreateOptions.FILE_NON_DIRECTORY_FILE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
         )
         file_open.write(content.encode("utf-8"), 0)
         file_open.close()
 
     def upload_file(self, local_path: str, dest_rel_path: str) -> None:
-        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
         _, session, tree = self._get_connection()
-        full_path = f"{self.remote_path}/{dest_rel_path}".strip("/")
+        full_path = self._get_sub_path(dest_rel_path)
         dir_path = "/".join(full_path.split("/")[:-1])
-        try:
-            dir_open = Open(tree, dir_path)
-            dir_open.create(
-                impersonation_level=2,
-                desired_access=FilePipePrinterAccessMask.FILE_LIST_DIRECTORY,
-                share_access=ShareAccess.FILE_SHARE_READ,
-                create_disposition=CreateDisposition.FILE_CREATE,
-                create_options=CreateOptions.FILE_DIRECTORY_FILE,
-            )
-            dir_open.close()
-        except Exception:
-            logger.debug("SMB ensure directory failed: %s", dir_path, exc_info=True)
+        if dir_path:
+            try:
+                dir_open = Open(tree, dir_path)
+                dir_open.create(
+                    impersonation_level=2,
+                    desired_access=FilePipePrinterAccessMask.GENERIC_READ,
+                    share_access=ShareAccess.FILE_SHARE_READ,
+                    create_disposition=CreateDisposition.FILE_CREATE,
+                    create_options=CreateOptions.FILE_DIRECTORY_FILE,
+                    file_attributes=FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                )
+                dir_open.close()
+            except Exception:
+                logger.debug("SMB ensure directory failed: %s", dir_path, exc_info=True)
         with open(local_path, "rb") as f:
             data = f.read()
         file_open = Open(tree, full_path)
@@ -328,10 +509,70 @@ class SMBAdapter(ProtocolAdapter):
             impersonation_level=2,
             desired_access=FilePipePrinterAccessMask.FILE_WRITE_DATA,
             share_access=ShareAccess.FILE_SHARE_READ,
-            create_disposition=CreateDisposition.FILE_CREATE,
+            create_disposition=CreateDisposition.FILE_OVERWRITE_IF,
+            create_options=CreateOptions.FILE_NON_DIRECTORY_FILE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
         )
-        file_open.write(data, 0)
+        # 分块写入，避免超过 SMB 最大写入大小（通常 1MB）
+        write_offset = 0
+        chunk_size = 1024 * 1024  # 1MB
+        while write_offset < len(data):
+            chunk = data[write_offset:write_offset + chunk_size]
+            file_open.write(chunk, write_offset)
+            write_offset += len(chunk)
         file_open.close()
+
+    def create_directory(self, rel_path: str) -> None:
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
+        _, session, tree = self._get_connection()
+        # tree 已连接到 share，只需使用子路径
+        parts = self.remote_path.split("/")
+        sub_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+        full_path = f"{sub_path}/{rel_path}".strip("/") if sub_path else rel_path
+        dir_open = Open(tree, full_path)
+        dir_open.create(
+            impersonation_level=2,
+            desired_access=FilePipePrinterAccessMask.GENERIC_READ,
+            share_access=ShareAccess.FILE_SHARE_READ,
+            create_disposition=CreateDisposition.FILE_CREATE,
+            create_options=CreateOptions.FILE_DIRECTORY_FILE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+        )
+        dir_open.close()
+
+    def delete_file(self, rel_path: str) -> None:
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
+        _, session, tree = self._get_connection()
+        parts = self.remote_path.split("/")
+        sub_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+        full_path = f"{sub_path}/{rel_path}".strip("/") if sub_path else rel_path
+        file_open = Open(tree, full_path)
+        file_open.create(
+            impersonation_level=2,
+            desired_access=FilePipePrinterAccessMask.DELETE,
+            share_access=ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE | ShareAccess.FILE_SHARE_DELETE,
+            create_disposition=CreateDisposition.FILE_OPEN,
+            create_options=CreateOptions.FILE_DELETE_ON_CLOSE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_NORMAL,
+        )
+        file_open.close()
+
+    def delete_directory(self, rel_path: str) -> None:
+        from smbprotocol.open import Open, CreateDisposition, FilePipePrinterAccessMask, ShareAccess, CreateOptions, FileAttributes
+        _, session, tree = self._get_connection()
+        parts = self.remote_path.split("/")
+        sub_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+        full_path = f"{sub_path}/{rel_path}".strip("/") if sub_path else rel_path
+        dir_open = Open(tree, full_path)
+        dir_open.create(
+            impersonation_level=2,
+            desired_access=FilePipePrinterAccessMask.DELETE,
+            share_access=ShareAccess.FILE_SHARE_READ | ShareAccess.FILE_SHARE_WRITE | ShareAccess.FILE_SHARE_DELETE,
+            create_disposition=CreateDisposition.FILE_OPEN,
+            create_options=CreateOptions.FILE_DIRECTORY_FILE | CreateOptions.FILE_DELETE_ON_CLOSE,
+            file_attributes=FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+        )
+        dir_open.close()
 
 
 class FTPAdapter(ProtocolAdapter):
@@ -461,6 +702,27 @@ class FTPAdapter(ProtocolAdapter):
             ftp.storbinary(f"STOR {full_path}", f)
         ftp.quit()
 
+    def create_directory(self, rel_path: str) -> None:
+        import ftplib
+        ftp = self._get_ftp()
+        full_path = f"/{self.remote_path}/{rel_path}".replace("//", "/")
+        ftp.mkd(full_path)
+        ftp.quit()
+
+    def delete_file(self, rel_path: str) -> None:
+        import ftplib
+        ftp = self._get_ftp()
+        full_path = f"/{self.remote_path}/{rel_path}".replace("//", "/")
+        ftp.delete(full_path)
+        ftp.quit()
+
+    def delete_directory(self, rel_path: str) -> None:
+        import ftplib
+        ftp = self._get_ftp()
+        full_path = f"/{self.remote_path}/{rel_path}".replace("//", "/")
+        ftp.rmd(full_path)
+        ftp.quit()
+
 
 class WebDAVAdapter(ProtocolAdapter):
     """WebDAV 协议适配器。"""
@@ -575,6 +837,18 @@ class WebDAVAdapter(ProtocolAdapter):
             except Exception:
                 logger.debug("WebDAV mkdir failed: %s", dir_path, exc_info=True)
         client.upload_sync(local_path, dest_rel_path)
+
+    def create_directory(self, rel_path: str) -> None:
+        client = self._get_client()
+        client.mkdir(rel_path)
+
+    def delete_file(self, rel_path: str) -> None:
+        client = self._get_client()
+        client.delete_sync(rel_path)
+
+    def delete_directory(self, rel_path: str) -> None:
+        client = self._get_client()
+        client.rmdir(rel_path)
 
 
 class SCPAdapter(ProtocolAdapter):
@@ -702,6 +976,27 @@ class SCPAdapter(ProtocolAdapter):
             except OSError:
                 pass
         sftp.put(local_path, full_path)
+        sftp.close()
+        transport.close()
+
+    def create_directory(self, rel_path: str) -> None:
+        transport, sftp = self._get_sftp()
+        full_path = f"{self.remote_path}/{rel_path}"
+        sftp.mkdir(full_path)
+        sftp.close()
+        transport.close()
+
+    def delete_file(self, rel_path: str) -> None:
+        transport, sftp = self._get_sftp()
+        full_path = f"{self.remote_path}/{rel_path}"
+        sftp.remove(full_path)
+        sftp.close()
+        transport.close()
+
+    def delete_directory(self, rel_path: str) -> None:
+        transport, sftp = self._get_sftp()
+        full_path = f"{self.remote_path}/{rel_path}"
+        sftp.rmdir(full_path)
         sftp.close()
         transport.close()
 

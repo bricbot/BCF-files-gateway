@@ -5,12 +5,33 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from .models import _connect
+from .models import _connect, get_config
 from .mounts import create_adapter, FileInfo
 
 
 # 状态目录名称
 STATUS_DIRS = (".accepted", ".rejected", ".exception", ".review")
+
+
+def _parse_extensions(config_str: str) -> set[str] | None:
+    """解析允许的文件扩展名配置。返回 None 表示不过滤。"""
+    if not config_str or config_str.strip() == "*":
+        return None
+    exts = set()
+    for ext in config_str.split(","):
+        ext = ext.strip().lower()
+        if ext:
+            if not ext.startswith("."):
+                ext = "." + ext
+            exts.add(ext)
+    return exts if exts else None
+
+
+def _parse_excluded_folders(config_str: str) -> set[str]:
+    """解析排除的文件夹名称配置。"""
+    if not config_str:
+        return set()
+    return {f.strip() for f in config_str.split(",") if f.strip()}
 
 
 def scan_task_source(
@@ -40,8 +61,22 @@ def scan_task_source(
     except Exception:
         return {"new": 0, "removed": 0, "total": 0, "status_counts": {}}
 
+    # 读取过滤配置
+    allowed_ext_str = get_config(db_path, "allowed_file_extensions", "*")
+    excluded_folder_str = get_config(db_path, "excluded_folders", "")
+    allowed_exts = _parse_extensions(allowed_ext_str)
+    excluded_folders = _parse_excluded_folders(excluded_folder_str)
+
     # 过滤掉非文件
     files = [f for f in files if not f.is_dir]
+
+    # 文件扩展名过滤
+    if allowed_exts is not None:
+        files = [f for f in files if Path(f.name).suffix.lower() in allowed_exts]
+
+    # 文件夹过滤
+    if excluded_folders:
+        files = [f for f in files if not any(part in excluded_folders for part in Path(f.path).parts)]
 
     # 统计状态目录中的文件数量
     status_counts = {}

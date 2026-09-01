@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ task.name }} - 审批详情{% endblock %}
 {% block content %}
-<div x-data="{ selected: [], rejectReason: '', showReject: false, showWithdraw: false, withdrawReason: '' }">
+<div x-data="{ selected: [], rejectReason: '', showReject: false, showWithdraw: false, withdrawReason: '', rejectFileIds: '' }">
     <header style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
             <h2>{{ task.name }}</h2>
@@ -49,7 +49,7 @@
                 hx-post="/app/task/{{ task.id }}/approve"
                 hx-vals='js:{file_ids: JSON.stringify(selected)}'
                 hx-target="#file-list" hx-swap="outerHTML">批准入库</button>
-        <button x-show="selected.length > 0" @click="showReject = true" class="outline" style="padding: 0.3rem 0.6rem; color: var(--pico-del-color);">拒绝入库</button>
+        <button x-show="selected.length > 0" @click="rejectFileIds = ''; showReject = true" class="outline" style="padding: 0.3rem 0.6rem; color: var(--pico-del-color);">拒绝入库</button>
         <button x-show="selected.length > 0" class="outline" style="padding: 0.3rem 0.6rem; color: #f57c00;"
                 hx-post="/app/task/{{ task.id }}/review"
                 hx-vals='js:{file_ids: JSON.stringify(selected)}'
@@ -61,8 +61,13 @@
         <article>
             <h4>拒绝入库</h4>
             <form method="POST" action="/app/task/{{ task.id }}/reject">
-                <template x-for="id in selected" :key="id">
-                    <input type="hidden" name="file_ids" :value="id">
+                <template x-if="rejectFileIds">
+                    <input type="hidden" name="file_ids" :value="rejectFileIds">
+                </template>
+                <template x-if="!rejectFileIds">
+                    <template x-for="id in selected" :key="id">
+                        <input type="hidden" name="file_ids" :value="id">
+                    </template>
                 </template>
                 <label>拒绝原因（选填）
                     <textarea name="reject_reason" rows="3" x-model="rejectReason"></textarea>
@@ -95,9 +100,10 @@
                             <input type="hidden" name="file_ids" value="{{ f.id }}">
                             <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">批准</button>
                         </form>
-                        <form method="POST" action="/app/task/{{ task.id }}/reject" style="display: inline;">
+                        <button type="button" @click="rejectFileIds = '{{ f.id }}'; showReject = true" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; color: var(--pico-del-color);">拒绝</button>
+                        <form method="POST" action="/app/task/{{ task.id }}/review" style="display: inline;">
                             <input type="hidden" name="file_ids" value="{{ f.id }}">
-                            <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; color: var(--pico-del-color);">拒绝</button>
+                            <button type="submit" class="outline" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; color: #f57c00;">复核</button>
                         </form>
                     </td>
                 </tr>

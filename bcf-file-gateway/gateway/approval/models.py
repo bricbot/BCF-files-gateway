@@ -188,7 +188,8 @@ DEFAULT_CONFIGS: dict[str, tuple[str, str]] = {
     "session_timeout_minutes": ("480", "登录会话超时（分钟）"),
     "max_concurrent_transfers": ("3", "同时传输并发数（建议不超过10）"),
     "max_upload_size_mb": ("500", "单文件大小上限（MB）"),
-    "allowed_file_extensions": ("*", "允许的文件类型（*表示全部）"),
+    "allowed_file_extensions": (".pdf,.ppt,.pptx,.jpg,.png,.xls,.xlsx,.doc,.docx", "允许的文件类型（逗号分隔扩展名，* 表示全部）"),
+    "excluded_folders": ("", "排除的文件夹名称（逗号分隔，留空表示不过滤）"),
 }
 
 

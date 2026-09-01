@@ -428,9 +428,29 @@ def create_web_router() -> APIRouter:
         secret: str = request.app.state.secret
         form = await request.form()
         mid = int(form.get("mount_id", 0))
+        test_mode = form.get("test_mode", "read_write")
         mount = get_mount(db_path, mid)
-        ok = test_mount_connection(mount, secret) if mount else False
-        return RedirectResponse(f"/app/admin/mounts?test_result={'ok' if ok else 'fail'}", status_code=302)
+        test_results = None
+        if mount:
+            from ..approval.mounts import create_adapter
+            try:
+                adapter = create_adapter(mount, secret)
+                test_results = adapter.run_detailed_tests(test_mode=test_mode)
+            except Exception as e:
+                test_results = {
+                    "error": str(e),
+                    "create_directory": {"success": False, "message": ""},
+                    "create_file": {"success": False, "message": ""},
+                    "write_file": {"success": False, "message": ""},
+                }
+                if test_mode == "read_write_delete":
+                    test_results["delete_file"] = {"success": False, "message": ""}
+                    test_results["delete_directory"] = {"success": False, "message": ""}
+        mounts = list_mounts(db_path)
+        user = request.state.user
+        return templates.TemplateResponse(request, "admin/mounts.html", {
+            "user": user, "mounts": mounts, "test_results": test_results, "test_mount_id": mid, "test_mode": test_mode,
+        })
 
     @router.post("/admin/mounts/delete")
     @require_login
@@ -492,6 +512,35 @@ def create_web_router() -> APIRouter:
         # 创建后立即触发首次扫描
         secret: str = request.app.state.secret
         scan_task_source(db_path, tid, secret)
+        return RedirectResponse("/app/admin/tasks", status_code=302)
+
+    @router.post("/admin/tasks/update")
+    @require_login
+    @require_admin
+    async def admin_tasks_update(request: Request):
+        db_path: Path = request.app.state.db_path
+        user = request.state.user
+        form = await request.form()
+        tid = int(form.get("task_id", 0))
+        if not tid:
+            return RedirectResponse("/app/admin/tasks", status_code=302)
+        assignee_ids = [int(x) for x in form.getlist("assignee_ids")]
+        end_time = None
+        et = form.get("end_time", "")
+        if et:
+            end_time = datetime.fromisoformat(et).timestamp()
+        from ..approval.tasks import update_task, set_assignees
+        update_task(
+            db_path, tid,
+            name=form.get("name", ""),
+            description=form.get("description", ""),
+            source_mount_id=int(form.get("source_mount_id", 0)),
+            target_mount_id=int(form.get("target_mount_id", 0)),
+            task_type=form.get("task_type", "permanent"),
+            end_time=end_time,
+        )
+        set_assignees(db_path, tid, assignee_ids)
+        log_action(db_path, user["id"], "update_task", resource_type="task", resource_id=tid)
         return RedirectResponse("/app/admin/tasks", status_code=302)
 
     @router.post("/admin/tasks/scan")
@@ -607,9 +656,10 @@ def create_web_router() -> APIRouter:
         form = await request.form()
         for key in ("scan_interval_minutes", "max_retry_count", "max_files_per_task",
                      "onetime_task_default_days", "password_min_length", "session_timeout_minutes",
-                     "max_concurrent_transfers", "max_upload_size_mb", "allowed_file_extensions"):
+                     "max_concurrent_transfers", "max_upload_size_mb", "allowed_file_extensions",
+                     "excluded_folders"):
             val = form.get(key, "")
-            if val:
+            if val is not None:
                 set_config(db_path, key, val)
         # 特殊处理 checkbox
         special = form.get("password_require_special", "")

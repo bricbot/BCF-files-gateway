@@ -1,10 +1,24 @@
 {% extends "base.html" %}
 {% block title %}挂载点管理{% endblock %}
 {% block content %}
-<div x-data="{ showForm: false }">
+<div x-data="{
+    showForm: false,
+    editingId: '',
+    form: { name: '', protocol: 'local', host: '', port: '', remote_path: '', username: '', password: '', mount_type: 'source' },
+    openEdit(m) {
+        this.editingId = m.id;
+        this.form = { name: m.name, protocol: m.protocol, host: m.host || '', port: m.port || '', remote_path: m.remote_path, username: m.username || '', password: '', mount_type: m.mount_type };
+        this.showForm = true;
+    },
+    openNew() {
+        this.editingId = '';
+        this.form = { name: '', protocol: 'local', host: '', port: '', remote_path: '', username: '', password: '', mount_type: 'source' };
+        this.showForm = true;
+    }
+}">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2>挂载点管理</h2>
-        <button @click="showForm = !showForm" class="outline">+ 新建挂载点</button>
+        <button @click="openNew()" class="outline">+ 新建挂载点</button>
     </div>
 
     <!-- 新建/编辑表单 -->
@@ -91,9 +105,15 @@
                 <td>
                     <form method="POST" action="/app/admin/mounts/test" style="display: inline;">
                         <input type="hidden" name="mount_id" value="{{ m.id }}">
-                        <button type="submit" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">测试</button>
+                        <input type="hidden" name="test_mode" value="read_write">
+                        <button type="submit" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">测试读写</button>
                     </form>
-                    <a href="/app/admin/mounts/edit/{{ m.id }}" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">编辑</a>
+                    <form method="POST" action="/app/admin/mounts/test" style="display: inline;">
+                        <input type="hidden" name="mount_id" value="{{ m.id }}">
+                        <input type="hidden" name="test_mode" value="read_write_delete">
+                        <button type="submit" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">测试读写删</button>
+                    </form>
+                    <button type="button" @click="openEdit({ id: {{ m.id }}, name: '{{ m.name }}', protocol: '{{ m.protocol }}', host: '{{ m.host or '' }}', port: {{ m.port or 0 }}, remote_path: '{{ m.remote_path }}', username: '{{ m.username or '' }}', mount_type: '{{ m.mount_type }}' })" class="outline secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">编辑</button>
                     <form method="POST" action="/app/admin/mounts/delete" style="display: inline;"
                           onsubmit="return confirm('确定删除此挂载点？');">
                         <input type="hidden" name="mount_id" value="{{ m.id }}">
@@ -108,9 +128,92 @@
         </tbody>
     </table>
 
-    {% if test_result is not none %}
-    <article style="background: {% if test_result %}#d4edda{% else %}#f8d7da{% endif %}; padding: 1rem;">
-        <strong>连接测试结果：</strong>{% if test_result %}连接成功{% else %}连接失败{% endif %}
+    {% if test_results %}
+    <article style="margin-top: 1rem;">
+        <h4>挂载点测试结果
+            {% for m in mounts %}{% if m.id == test_mount_id %} - {{ m.name }} ({{ m.protocol | upper }}){% endif %}{% endfor %}
+            {% if test_mode == 'read_write' %}
+            <span style="font-size: 0.8rem; color: var(--pico-muted-color); font-weight: normal;">（读写模式，测试文件已保留）</span>
+            {% else %}
+            <span style="font-size: 0.8rem; color: var(--pico-muted-color); font-weight: normal;">（读写删模式）</span>
+            {% endif %}
+        </h4>
+        {% if test_results.error %}
+        <p style="color: var(--pico-del-color);"><strong>连接失败：</strong>{{ test_results.error }}</p>
+        {% endif %}
+        <table style="margin-top: 0.5rem;">
+            <thead>
+                <tr>
+                    <th>测试项目</th>
+                    <th>结果</th>
+                    <th>详情</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>创建文件夹</td>
+                    <td>
+                        {% if test_results.create_directory.success %}
+                        <span style="color: var(--pico-ins-color);">✓ 成功</span>
+                        {% else %}
+                        <span style="color: var(--pico-del-color);">✗ 失败</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ test_results.create_directory.message }}</td>
+                </tr>
+                <tr>
+                    <td>创建文本文件</td>
+                    <td>
+                        {% if test_results.create_file.success %}
+                        <span style="color: var(--pico-ins-color);">✓ 成功</span>
+                        {% else %}
+                        <span style="color: var(--pico-del-color);">✗ 失败</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ test_results.create_file.message }}</td>
+                </tr>
+                <tr>
+                    <td>写入文本文件</td>
+                    <td>
+                        {% if test_results.write_file.success %}
+                        <span style="color: var(--pico-ins-color);">✓ 成功</span>
+                        {% else %}
+                        <span style="color: var(--pico-del-color);">✗ 失败</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ test_results.write_file.message }}</td>
+                </tr>
+                {% if test_mode == 'read_write_delete' %}
+                <tr>
+                    <td>删除文本文件</td>
+                    <td>
+                        {% if test_results.delete_file.success %}
+                        <span style="color: var(--pico-ins-color);">✓ 成功</span>
+                        {% else %}
+                        <span style="color: var(--pico-del-color);">✗ 失败</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ test_results.delete_file.message }}</td>
+                </tr>
+                <tr>
+                    <td>删除文件夹</td>
+                    <td>
+                        {% if test_results.delete_directory.success %}
+                        <span style="color: var(--pico-ins-color);">✓ 成功</span>
+                        {% else %}
+                        <span style="color: var(--pico-del-color);">✗ 失败</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ test_results.delete_directory.message }}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        {% if test_results._test_dir %}
+        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--pico-muted-color);">
+            ℹ️ 测试文件已保留在目录: <code>{{ test_results._test_dir }}</code>，请手动清理。
+        </p>
+        {% endif %}
     </article>
     {% endif %}
 </div>
